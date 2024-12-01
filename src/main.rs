@@ -2,8 +2,11 @@
 mod raymod;
 
 use std::io::Write;
+use std::f64::consts::PI;
 use rayon::prelude::*;
 use raymod::*;
+
+const M_1_PI:f64=1.0/PI;
 
 fn random() -> f64 {
     rand::random::<f64>()
