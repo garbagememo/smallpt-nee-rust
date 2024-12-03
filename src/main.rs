@@ -67,10 +67,12 @@ lazy_static! {
         Sphere { rad: 1e5,   p: Vec3::new(50.0,           40.8, 1e5), e: Vec3::zero(),                c: Vec3::new(0.75, 0.75, 0.75), refl: Refl::Diff },
         Sphere { rad: 1e5,   p: Vec3::new(50.0,           40.8,-1e5 + 170.0),e: Vec3::zero(),         c: Vec3::zero(), refl: Refl::Diff },
         Sphere { rad: 1e5,   p: Vec3::new(50.0,            1e5, 81.6),e: Vec3::zero(),                c: Vec3::new(0.75, 0.75, 0.75), refl: Refl::Diff },
-        Sphere { rad: 1e5,   p: Vec3::new(50.0,-1e5 + 81.6+1.0, 81.6),e: Vec3::zero(),                c: Vec3::new(0.75, 0.75, 0.75), refl: Refl::Diff },
+        Sphere { rad: 1e5,   p: Vec3::new(50.0,-1e5 + 81.6, 81.6),e: Vec3::zero(),                c: Vec3::new(0.75, 0.75, 0.75), refl: Refl::Diff },
         Sphere { rad: 16.5,  p: Vec3::new(27.0,           16.5, 47.0),e: Vec3::zero(),                c: Vec3::new(1.0, 1.0, 1.0) * 0.999, refl: Refl::Spec },
         Sphere { rad: 16.5,  p: Vec3::new(73.0,           16.5, 78.0),e: Vec3::zero(),                c: Vec3::new(1.0, 1.0, 1.0) * 0.999, refl: Refl::Refr },
-        Sphere { rad: 600.0, p: Vec3::new(50.0, 681.6-0.27+1.0, 81.6),e: Vec3::new(12.0, 12.0, 12.0), c: Vec3::zero(), refl: Refl::Diff },
+        Sphere { rad: 1.5, p: Vec3::new(50.0, 81.6-16.5, 81.6),e: Vec3::new(400.0, 400.0, 400.0), c: Vec3::zero(), refl: Refl::Diff },
+//    Sphere(1.5, Vec(50, 81.6 - 16.5, 81.6), Vec(4, 4, 4) * 100, Vec(),
+
 	];
 }
 fn intersect(r: &Ray, t: &mut f64, id: &mut usize) -> bool {
