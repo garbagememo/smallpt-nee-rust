@@ -34,6 +34,9 @@ impl Vec3 {
     pub fn dot(&self, b: &Vec3) -> f64 {
         return self.x * b.x + self.y * b.y + self.z * b.z;
     }
+	pub fn length(&self)->f64{
+		return self.x*self.x+self.y*self.y+self.z*self.z;
+    }
 }
 
 impl Add for Vec3 {
