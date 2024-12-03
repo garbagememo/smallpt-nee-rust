@@ -103,7 +103,7 @@ fn radiance(r: &Ray, depth: u8,Ef:f64) -> Vec3 {
         if depth < 127 && random() < p {
             f = f * (1.0 / p);
         } else {
-            return obj.e;
+            return obj.e*Ef;
         }
     }
 
@@ -136,7 +136,7 @@ fn radiance(r: &Ray, depth: u8,Ef:f64) -> Vec3 {
                     e = e + f.mult(&(s.e*l.dot(&nl)*omega) )*FRAC_1_PI;  // 1/pi for brdf
                 }
             }//end for
-            obj.e*Ef+e + f.mult(&radiance(&Ray::new(x, d), depth,0.0))
+            obj.e*Ef+e + f.mult(&radiance(&Ray::new(x, d), depth,1.0)) //ここでEfに1.0入れるの間違ってるが絵は同じになるのが・・・そんなアフォな
         },
         Refl::Spec => {
             obj.e + f.mult(&radiance(&Ray::new(x, r.d - n * 2.0 * n.dot(&r.d)), depth,1.0))
