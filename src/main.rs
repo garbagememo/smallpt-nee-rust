@@ -100,7 +100,7 @@ fn radiance(r: &Ray, depth: u8,Ef:f64) -> Vec3 {
     let p = if f.x > f.y && f.x > f.z { f.x } else if f.y > f.z { f.y } else { f.z };
     let depth = depth + 1;
     if depth > 5 {
-        if depth < 127 && random() < p {
+        if random() < p {
             f = f * (1.0 / p);
         } else {
             return obj.e*Ef;
@@ -109,7 +109,7 @@ fn radiance(r: &Ray, depth: u8,Ef:f64) -> Vec3 {
 
     return match obj.refl {
         Refl::Diff => {
-            let r1 = 2.0 * std::f64::consts::PI * random();
+            let r1 = 2.0 * PI * random();
             let r2 = random();
             let r2s = r2.sqrt();
             let w = nl;
@@ -117,9 +117,11 @@ fn radiance(r: &Ray, depth: u8,Ef:f64) -> Vec3 {
             let v = w % u;
             let d = (u * f64::cos(r1) * r2s + v * f64::sin(r1) * r2s + w * (1.0 - r2).sqrt()).norm();
             // Loop over any lights
-            let mut e=Vec3::zero();
+            let mut em=Vec3::zero();
+			let tid=id;
             for i in 0..SPHERES.len(){ 
-                let s = &SPHERES[id];
+                let s = &SPHERES[i];
+				if i==tid {continue};
                 if s.e.x<=0.0 && s.e.y<=0.0 && s.e.z<=0.0 {continue}; // skip non-lights
                 let sw=s.p-x; 
                 let su = ((if sw.x.abs() > 0.1 { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) }) % sw).norm();
@@ -129,14 +131,19 @@ fn radiance(r: &Ray, depth: u8,Ef:f64) -> Vec3 {
                 let cos_a = 1.0-eps1+eps1*cos_a_max;
                 let sin_a = (1.0-cos_a*cos_a).sqrt();
                 let phi = 2.0*PI*eps2;
-                let l:Vec3 = su*(phi).cos()*sin_a + sv*(phi).sin()*sin_a + sw*cos_a;
-                l.norm();
+                let mut l:Vec3 = su*(phi).cos()*sin_a + sv*(phi).sin()*sin_a + sw*cos_a;
+                l=l.norm();
 	            if intersect(&Ray{o:x,d:l}, &mut t, &mut id)==true && id==i{  // shadow ray
                     let omega = 2.0*PI*(1.0-cos_a_max);
-                    e = e + f.mult(&(s.e*l.dot(&nl)*omega) )*FRAC_1_PI;  // 1/pi for brdf
+					let mut tr=l.dot(&nl);
+					if tr<0.0 {tr=0.0};
+                    em = em + f.mult(&(s.e*tr*omega) )*FRAC_1_PI;  // 1/pi for brdf
+                    //if l.dot(&nl)<0.0 {
+					//	println!(" l*nl={} cos_a_max={} cos_a={} sin_a={} phi={}", l.dot(&nl),cos_a_max,cos_a,sin_a,phi);
+				    //};
                 }
             }//end for
-            obj.e*Ef+e + f.mult(&radiance(&Ray::new(x, d), depth,1.0)) //ここでEfに1.0入れるの間違ってるが絵は同じになるのが・・・そんなアフォな
+            obj.e*Ef+em + f.mult(&radiance(&Ray::new(x, d), depth,0.0)) 
         },
         Refl::Spec => {
             obj.e + f.mult(&radiance(&Ray::new(x, r.d - n * 2.0 * n.dot(&r.d)), depth,1.0))
