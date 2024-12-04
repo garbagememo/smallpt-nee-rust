@@ -120,30 +120,38 @@ fn radiance(r: &Ray, depth: u8,Ef:f64) -> Vec3 {
             let d = (u * f64::cos(r1) * r2s + v * f64::sin(r1) * r2s + w * (1.0 - r2).sqrt()).norm();
             // Loop over any lights
             let mut em=Vec3::zero();
-			let tid=id;
+            let tid=id;
             for i in 0..SPHERES.len(){ 
                 let s = &SPHERES[i];
-				if i==tid {continue};
+                if i==tid {continue};
                 if s.e.x<=0.0 && s.e.y<=0.0 && s.e.z<=0.0 {continue}; // skip non-lights
-                let sw=s.p-x; 
+                let sw=s.p-x;
+                let light_rate=s.rad*s.rad/sw.length(); 
                 let su = ((if sw.x.abs() > 0.1 { Vec3::new(0.0, 1.0, 0.0) } else { Vec3::new(1.0, 0.0, 0.0) }) % sw).norm();
                 let sv=sw%su;
-                let cos_a_max = (1.0-s.rad*s.rad/sw.length()  ).sqrt();
-                let eps1 = random(); let eps2 = random();
-                let cos_a = 1.0-eps1+eps1*cos_a_max;
-                let sin_a = (1.0-cos_a*cos_a).sqrt();
-                let phi = 2.0*PI*eps2;
-                let mut l:Vec3 = su*(phi).cos()*sin_a + sv*(phi).sin()*sin_a + sw*cos_a;
-                l=l.norm();
-	            if intersect(&Ray{o:x,d:l}, &mut t, &mut id)==true && id==i{  // shadow ray
+                if light_rate>1.0 {
+                    let eps1=2.0*PI*random();let eps2=random();let eps2s=(1.0-eps2).sqrt();
+                    let ss=eps1.sin();let cc=eps1.cos();
+                    let mut l=(u*(cc*eps2s)+v*(ss*eps2s)+w*(1.0-eps2).sqrt()).norm();
+                    if intersect(&Ray{o:x,d:l},&mut t,&mut id)==true && id==i{
+                        let mut n_rate=l.dot(&nl);
+                        em = em + f.mult(&(s.e*n_rate) )  // 1/pi for brdf
+                          }
+                }else{
+                    let cos_a_max = (1.0-light_rate).sqrt();
+                    let eps1 = random(); let eps2 = random();
+                    let cos_a = 1.0-eps1+eps1*cos_a_max;
+                    let sin_a = (1.0-cos_a*cos_a).sqrt();
+                    let phi = 2.0*PI*eps2;
+                    let mut l:Vec3 = su*(phi).cos()*sin_a + sv*(phi).sin()*sin_a + sw*cos_a;
+                    l=l.norm();
+	                 if intersect(&Ray{o:x,d:l}, &mut t, &mut id)==true && id==i{  // shadow ray
                     let omega = 2.0*PI*(1.0-cos_a_max);
-					let mut tr=l.dot(&nl);
-					if tr<0.0 {tr=0.0};
-                    em = em + f.mult(&(s.e*tr*omega) )*FRAC_1_PI;  // 1/pi for brdf
-                    //if l.dot(&nl)<0.0 {
-					//	println!(" l*nl={} cos_a_max={} cos_a={} sin_a={} phi={}", l.dot(&nl),cos_a_max,cos_a,sin_a,phi);
-				    //};
-                }
+                    let mut n_rate=l.dot(&nl);
+                    if n_rate<0.0 {n_rate=0.0};
+                    em = em + f.mult(&(s.e*n_rate*omega) )*FRAC_1_PI;  // 1/pi for brdf
+                      }
+                  }
             }//end for
             obj.e*Ef+em + f.mult(&radiance(&Ray::new(x, d), depth,0.0)) 
         },
