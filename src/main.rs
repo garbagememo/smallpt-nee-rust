@@ -1,105 +1,18 @@
-#[macro_use]
-extern crate lazy_static;
 mod raymod;
-
 use raymod::*;
+
 use rayon::prelude::*;
 use std::f64::consts::*;
 use std::io::Write;
 
-fn random() -> f64 {
-    rand::random::<f64>()
-}
 
-#[derive(Debug)]
-struct Ray {
-    o: Vec3,
-    d: Vec3,
-}
-
-impl Ray {
-    fn new(o: Vec3, d: Vec3) -> Ray {
-        Ray { o, d }
-    }
-}
-
-enum Refl {
-    Diff,
-    Spec,
-    Refr,
-}
-
-pub struct Sphere {
-    rad: f64,
-    p: Vec3,
-    e: Vec3,
-    c: Vec3,
-    refl: Refl,
-}
-
-impl Sphere {
-    pub fn intersect(&self, r: &Ray) -> f64 {
-        let op = self.p - r.o;
-        let b = op.dot(&r.d);
-        let mut det = b * b - op.dot(&op) + self.rad * self.rad;
-        if det < 0.0 {
-            return INF;
-        }
-        det = det.sqrt();
-        let t = b - det;
-        if t > EPS {
-            return t;
-        }
-        let t = b + det;
-        if t > EPS {
-            return t;
-        } else {
-            return INF;
-        }
-    }
-	pub fn new(rad:f64,p:Vec3,e:Vec3,c:Vec3,refl:Refl)->Sphere{
-		Sphere{rad,p,e,c,refl}
-	}
-}
-
-type object_list=Vec<Box<Sphere>>;
-
-
-
-lazy_static! {
-    static ref SPHERES: [Sphere; 9] = [
-//		Sphere::new(1e5 ,Vec3::new(1e5 + 1.0,      40.8, 81.6),Vec3::zero(),Vec3::new(0.75, 0.25, 0.25), Refl::Diff),
-        Sphere { rad: 1e5,  p: Vec3::new(1e5 + 1.0,      40.8, 81.6),e: Vec3::zero(),                c: Vec3::new(0.75, 0.25, 0.25), refl: Refl::Diff },
-        Sphere { rad: 1e5,  p: Vec3::new(-1e5 + 99.0,    40.8, 81.6),e: Vec3::zero(),                c: Vec3::new(0.25, 0.25, 0.75), refl: Refl::Diff },
-        Sphere { rad: 1e5,  p: Vec3::new(50.0,           40.8, 1e5 ),e: Vec3::zero(),                c: Vec3::new(0.75, 0.75, 0.75), refl: Refl::Diff },
-        Sphere { rad: 1e5,  p: Vec3::new(50.0,    40.8,-1e5 + 170.0),e: Vec3::zero(),         c: Vec3::zero(), refl: Refl::Diff },
-        Sphere { rad: 1e5,  p: Vec3::new(50.0,            1e5, 81.6),e: Vec3::zero(),                c: Vec3::new(0.75, 0.75, 0.75), refl: Refl::Diff },
-        Sphere { rad: 1e5,  p: Vec3::new(50.0,-1e5 + 81.6+4.0, 81.6),e: Vec3::zero(),                c: Vec3::new(0.75, 0.75, 0.75), refl: Refl::Diff },
-        Sphere { rad: 16.5, p: Vec3::new(27.0,           16.5, 47.0),e: Vec3::zero(),                c: Vec3::new(1.0, 1.0, 1.0) * 0.999, refl: Refl::Spec },
-        Sphere { rad: 16.5, p: Vec3::new(73.0,           16.5, 78.0),e: Vec3::zero(),                c: Vec3::new(1.0, 1.0, 1.0) * 0.999, refl: Refl::Refr },
-        Sphere { rad: 1.5,  p: Vec3::new(50.0,      81.6-16.5, 81.6),e: Vec3::new(4.0,4.0,4.0)*100.0,c: Vec3::zero(), refl: Refl::Diff },
-    ];
-}
-fn intersect(r: &Ray, t: &mut f64, id: &mut usize) -> bool {
-    let n = SPHERES.len();
-    *t = INF;
-    for i in (0..n).rev() {
-        let d = SPHERES[i].intersect(r);
-        if d < *t {
-            *t = d;
-            *id = i;
-        }
-    }
-    return *t < INF;
-}
-
-fn radiance(r: &Ray, depth: u8, Ef: f64) -> Vec3 {
+fn radiance(r: &Ray, depth: u8, ef: f64,scene:&Scene) -> Vec3 {
     let mut t: f64 = 0.0;
     let mut id = 0;
-    if !intersect(r, &mut t, &mut id) {
+    if !scene.intersect(r, &mut t, &mut id) {
         return Vec3::zero();
     }
-    let obj = &SPHERES[id];
+    let obj = &scene.objects[id];
     let x = r.o + r.d * t;
     let n = (x - obj.p).norm();
     let nl = if n.dot(&r.d) < 0.0 { n } else { n * -1.0 };
@@ -116,7 +29,7 @@ fn radiance(r: &Ray, depth: u8, Ef: f64) -> Vec3 {
         if random() < p {
             f = f * (1.0 / p);
         } else {
-            return obj.e * Ef;
+            return obj.e * ef;
         }
     }
 
@@ -132,8 +45,8 @@ fn radiance(r: &Ray, depth: u8, Ef: f64) -> Vec3 {
             // Loop over any lights
             let mut em = Vec3::zero();
             let tid = id;
-            for i in 0..SPHERES.len() {
-                let s = &SPHERES[i];
+            for i in 0..scene.objects.len() {
+                let s = &scene.objects[i];
                 if i == tid {continue;};
                 if s.e.x <= 0.0 && s.e.y <= 0.0 && s.e.z <= 0.0 {continue;}; // skip non-lights
                 let sw = s.p - x;
@@ -147,7 +60,7 @@ fn radiance(r: &Ray, depth: u8, Ef: f64) -> Vec3 {
                     let ss = eps1.sin();
                     let cc = eps1.cos();
                     let l = (u * (cc * eps2s) + v * (ss * eps2s) + w * (1.0 - eps2).sqrt()).norm();
-                    if intersect(&Ray { o: x, d: l }, &mut t, &mut id) == true && id == i {
+                    if scene.intersect(&Ray { o: x, d: l }, &mut t, &mut id) == true && id == i {
                         let n_rate = l.dot(&nl);
                         em = em + f.mult(&(s.e * n_rate)) // 1/pi for brdf
                     }
@@ -161,7 +74,7 @@ fn radiance(r: &Ray, depth: u8, Ef: f64) -> Vec3 {
                     let mut l: Vec3 =
                         su * (phi).cos() * sin_a + sv * (phi).sin() * sin_a + sw * cos_a;
                     l = l.norm();
-                    if intersect(&Ray { o: x, d: l }, &mut t, &mut id) == true && id == i {
+                    if scene.intersect(&Ray { o: x, d: l }, &mut t, &mut id) == true && id == i {
                         // shadow ray
                         let omega = 2.0 * PI * (1.0 - cos_a_max);
                         let mut n_rate = l.dot(&nl);
@@ -173,10 +86,10 @@ fn radiance(r: &Ray, depth: u8, Ef: f64) -> Vec3 {
                     }
                 }
             } //end for
-            obj.e * Ef + em + f.mult(&radiance(&Ray::new(x, d), depth, 0.0))
+            obj.e * ef + em + f.mult(&radiance(&Ray::new(x, d), depth, 0.0,scene))
         }
         Refl::Spec => {
-            obj.e + f.mult(&radiance( &Ray::new(x, r.d - n * 2.0 * n.dot(&r.d)), depth,1.0,))
+            obj.e + f.mult(&radiance( &Ray::new(x, r.d - n * 2.0 * n.dot(&r.d)), depth,1.0,scene))
         }
         _ => {
             // Refl.Refr
@@ -188,7 +101,7 @@ fn radiance(r: &Ray, depth: u8, Ef: f64) -> Vec3 {
             let ddn = r.d.dot(&nl);
             let cos2t = 1.0 - nnt * nnt * (1.0 - ddn * ddn);
             if cos2t < 0.0 {
-                obj.e + f.mult(&radiance(&refl_ray, depth, 1.0))
+                obj.e + f.mult(&radiance(&refl_ray, depth, 1.0,scene))
             } else {
                 let tdir =
                     r.d * nnt - n * ((if into { 1.0 } else { -1.0 }) * (ddn * nnt + cos2t.sqrt()));
@@ -206,13 +119,13 @@ fn radiance(r: &Ray, depth: u8, Ef: f64) -> Vec3 {
                     + f.mult(
                         &(if depth > 2 {
                             if random() < p {
-                                radiance(&refl_ray, depth, 1.0) * rp
+                                radiance(&refl_ray, depth, 1.0,scene) * rp
                             } else {
-                                radiance(&Ray::new(x, tdir), depth, 1.0) * tp
+                                radiance(&Ray::new(x, tdir), depth, 1.0,scene) * tp
                             }
                         } else {
-                            radiance(&refl_ray, depth, 1.0) * re
-                                + radiance(&Ray::new(x, tdir), depth, 1.0) * tr
+                            radiance(&refl_ray, depth, 1.0,scene) * re
+                                + radiance(&Ray::new(x, tdir), depth, 1.0,scene) * tr
                         }),
                     )
             }
@@ -221,6 +134,10 @@ fn radiance(r: &Ray, depth: u8, Ef: f64) -> Vec3 {
 }
 
 fn main() {
+
+    let mut scene=Scene::init();
+    scene.model_init4();
+
     let w: usize = 640;
     let h: usize = 480;
     let samps = if std::env::args().len() == 2 {
@@ -241,7 +158,7 @@ fn main() {
     bands.into_par_iter().for_each(|(y, band)| {
         let y2 = h - (y as usize) - 1;
         if (y % 10) == 0 {
-			writeln!( std::io::stderr(), "Rendering ({} spp) {:5.2}%", samps * 4,100.0 * (y as f64) / ((h as f64) - 1.0) ).unwrap();
+            writeln!( std::io::stderr(), "Rendering ({} spp) {:5.2}%", samps * 4,100.0 * (y as f64) / ((h as f64) - 1.0) ).unwrap();
         }
         for x in 0..w {
             let mut r = Vec3::zero();
@@ -255,7 +172,7 @@ fn main() {
                         let d = cx * ((((sx as f64) + 0.5 + dx) / 2.0 + (x as f64)) / (w as f64) - 0.5)
                               + cy * ((((sy as f64) + 0.5 + dy) / 2.0 + (y2 as f64)) / (h as f64)- 0.5)
                               + cam.d;
-                        r = r + radiance(&(Ray::new(cam.o + d * 140.0, d.norm())), 0, 1.0) * (1.0 / (samps as f64));
+                        r = r + radiance(&(Ray::new(cam.o + d * 140.0, d.norm())), 0, 1.0,&scene) * (1.0 / (samps as f64));
                     }
                     band[x as usize] = band[x as usize] + r * (1.0 / 4.0 as f64);
                     r = Vec3::zero();
