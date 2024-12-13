@@ -42,23 +42,27 @@ impl Sphere {
 		}
 	}
 		
-    pub fn intersect(&self, r: &Ray) -> f64 {
-        let op = self.p - r.o;
-        let b = op.dot(&r.d);
-        let mut det = b * b - op.dot(&op) + self.rad * self.rad;
-        if det < 0.0 {
-            return INF;
+    pub fn intersect(&self, ray: &Ray) -> Option<f64> {
+        let po = self.p - ray.o;
+        let b = po.dot(&ray.d);
+        let d4 = b * b - po.dot(&po) + self.rad * self.rad;
+
+        if d4 < 0.0 {
+            return None;
         }
-        det = det.sqrt();
-        let t = b - det;
-        if t > EPS {
-            return t;
+
+        let sqrt_d4 = d4.sqrt();
+        let t1 = b - sqrt_d4;
+        let t2 = b + sqrt_d4;
+
+        if t1 < EPS && t2 < EPS {
+            return None;
         }
-        let t = b + det;
-        if t > EPS {
-            return t;
+
+        if t1 > EPS {
+            return Some(t1);
         } else {
-            return INF;
+            return Some(t2);
         }
     }
 }
@@ -78,20 +82,22 @@ impl Scene {
 			objects: vec![],
         }
 	}
-
-    pub fn intersect(&self,r: &Ray, t: &mut f64, id: &mut usize) -> bool {
-       let n = self.objects.len();
-       *t = INF + 20.0;
-       for i in (0..n).rev() {
-           let d = self.objects[i].intersect(r);
-		   if d < *t {
-			   *t = d;
-               *id = i;
-           }
-       }
-       return *t < INF; 
+    pub fn intersect(&self, r: &Ray, t: &mut f64, id: &mut usize) -> bool {
+        *t=INF;
+        for i in (0..self.objects.len() ).rev() {
+            match self.objects[i].intersect(r) {
+                Some(d)=>{
+                    if d < *t {
+                        *t=d;
+                        *id=i;
+                    }
+                },
+                None=>{},
+            }
+        }
+        return *t < INF;
     }
-	
+
 	pub fn model_init0(&mut self)->bool{
  //-------------Debug Scene sc1-------------
 		self.add( Sphere::new( 1e5,   Vec3::new( 1e5 + 1.0,     40.8, 81.6),Vec3::zero(),                Vec3::new(0.75, 0.25, 0.25), Refl::Diff ));//left
