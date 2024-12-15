@@ -79,9 +79,6 @@ fn radiance(r: &Ray, depth: u8, ef: f64,scene:&Scene) -> Vec3 {
                         // shadow ray
                         let omega = 2.0 * PI * (1.0 - cos_a_max);
                         let mut n_rate = l.dot(&nl);
-                        //if n_rate< 0.0 || n_rate>1.0 {
-                        //    println!("n_rate={} ---- l.x={} l.y={} l.z={}  ---- nl.x={} nl.y={} nl.z={}",n_rate,l.x,l.y,l.z,nl.x,nl.y,nl.z);
-                        //}
                         if n_rate < 0.0 { n_rate = 0.0 };
                         em = em + f.mult(&(s.e * n_rate * omega)) * FRAC_1_PI; // 1/pi for brdf
                     }
@@ -188,7 +185,7 @@ fn main() {
                               + cam.d;
                         r = r + radiance(&(Ray::new(cam.o + d * 140.0, d.norm())), 0, 1.0,&scene) * (1.0 / (samps as f64));
                     }
-                    band[x as usize] = band[x as usize] + r * (1.0 / 4.0 as f64);
+                    band[x as usize] = band[x as usize] + Vec3::new(clamp(r.x),clamp(r.y),clamp(r.z)) * (1.0 / 4.0 );
                     r = Vec3::zero();
                 }
             }
